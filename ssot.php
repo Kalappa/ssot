@@ -1,9 +1,18 @@
 <?php
 error_reporting( error_reporting() & ~E_NOTICE );
+$money = NULL;
+$peug = NULL;
+$eu_peug = NULL;
+$eu_peug_CAPS = NULL;
+
+$Non_DR_Str = array("CREDIT", "CUSTOM", "DR-1", "DS", "IMMEDIATE", "RETURNS", "POS", "NS", "unknown");
 
 function adjustRevenue($Revrec_Net, $Category, $Revrec_Type, $SO_Channel_Code, $Product_Family, $Segment, $P4_Reporting_Ship_to_GEO) {
+    
+    global $money;
 
     $Non_DR = $money[$Product_Family][$Segment][$P4_Reporting_Ship_to_GEO]["NON-DR"];
+
     $DR = $money[$Product_Family][$Segment][$P4_Reporting_Ship_to_GEO]["DR"];
     if ($Revrec_Net == 0){
             return 0;
@@ -16,7 +25,7 @@ function adjustRevenue($Revrec_Net, $Category, $Revrec_Type, $SO_Channel_Code, $
                 if ($Revrec_Type == "DR") {
                     return 0;
                 } else {
-                    return ($Revrec_Net + $Revrec_Net*$Non_DR/$DR);
+                    return ($Revrec_Net + $Revrec_Net*$DR/$Non_DR);
                 }
             } else {
                 return $Revrec_Net;
@@ -29,14 +38,16 @@ function adjustRevenue($Revrec_Net, $Category, $Revrec_Type, $SO_Channel_Code, $
                             
 function generate_money_pivot($filename = "test1.csv") {
     
+    global $money;
+    global $Non_DR_Str;
+
     $handle = @fopen($filename, "r");
 
     if (! $handle) {
         print " Unable to Open File";
         exit;
     }
-    $Non_DR = array("CREDIT", "CUSTOM", "DR-1", "DS", "IMMEDIATE", "RETURNS", "POS", "NS", "unknown");
-    $money = NULL;
+
     while (($buffer = fgets($handle, 4096)) !== false) {
 	$list = str_getcsv($buffer, ",", '"');
 	$Category = $list[0];
@@ -49,7 +60,7 @@ function generate_money_pivot($filename = "test1.csv") {
 	if ($list[3] == "DR") {
 	    $Revrec_Type = $list[3];
 	} else {
-	    $Revrec_Type = str_replace($Non_DR, "NON-DR", $list[3]);
+	    $Revrec_Type = str_replace($Non_DR_Str, "NON-DR", $list[3]);
 	}
 	$P4_Reporting_Ship_to_GEO = $list[17];
 	$Revrec_Net = $list[24];
@@ -61,8 +72,10 @@ function generate_money_pivot($filename = "test1.csv") {
 }
 
 function generate_money_pivot_new($res) {
-    
-    $Non_DR = array("CREDIT", "CUSTOM", "DR-1", "DS", "IMMEDIATE", "RETURNS", "POS", "NS", "unknown");
+
+    global $money;
+    global $Non_DR_Str;
+
     $money = NULL;
     foreach ($res as $index => $list) {
 	$Category = $list[4];
@@ -75,7 +88,7 @@ function generate_money_pivot_new($res) {
 	if ($list[15] == "DR") {
 	    $Revrec_Type = $list[15];
 	} else {
-	    $Revrec_Type = str_replace($Non_DR, "NON-DR", $list[15]);
+	    $Revrec_Type = str_replace($Non_DR_Str, "NON-DR", $list[15]);
 	}
 	$P4_Reporting_Ship_to_GEO = $list[3];
 	$Revrec_Net = $list[12];
@@ -87,7 +100,9 @@ function generate_money_pivot_new($res) {
 }
 
 function verify_revenue_adjustment_new($res){
-    
+
+    global $Non_DR_Str;
+
     generate_money_pivot_new($res);
     
     $handle = @fopen("final.csv", "w+");
@@ -101,7 +116,7 @@ function verify_revenue_adjustment_new($res){
 	if ($list[15] == "DR") {
 	    $Revrec_Type = $list[15];
 	} else {
-	    $Revrec_Type = str_replace($Non_DR, "NON-DR", $list[15]);
+	    $Revrec_Type = str_replace($Non_DR_Str, "NON-DR", $list[15]);
 	}
 	$P4_Reporting_Ship_to_GEO = $list[3];
 	$Revrec_Net = floatval(str_replace(',', '', $list[12]));
@@ -113,6 +128,9 @@ function verify_revenue_adjustment_new($res){
 	if ($i != 0 ){
 	    $list[14] = $adjRev;
 	}
+	# if ($Revrec_Net != $adjRev){
+	#     print " Revenue mismatch: ".implode(',', $list)."\n";
+	# }
 	$i = 1;
 	fputcsv($handle,$list);
     }
@@ -160,6 +178,7 @@ function verify_revenue_adjustment($filename = "test1.csv"){
 function eu_peug($filename = "EU_PEUG.csv"){
     
     global $eu_peug;
+    global $eu_peug_CAPS;
 
     $handle = @fopen($filename, "r");
     
@@ -169,8 +188,6 @@ function eu_peug($filename = "EU_PEUG.csv"){
     }
     while (($buffer = fgets($handle, 4096)) !== false) {
 	$list = str_getcsv($buffer, ",", '"');
-//	$pe = preg_replace("/[^A-Za-z0-9 ]/", '', $list[0]);
-//	$peug = preg_replace("/[^A-Za-z0-9 ]/", '', $list[1]);
 	$eu_peug[$list[0]] = $list[1];
     }
 }
@@ -195,12 +212,22 @@ function peug_vert($filename = "PEUG_VERT.csv"){
 function merge_ssot($quarter="Q115") {
 
     global $res;
-    
+    global $peug;
+    global $eu_peug;
+    global $eu_peug_CAPS;
+    $peg = NULL;
+
+    #we assume "product.csv comes first :(
+
     $files = array("Product.csv", "Service.csv");
+
+    $header= array("Parent Enduser Group","Rev_Rec_QTR","SO Channel Code","P4 Reporting Ship to GEO","Category","Segment","Vertical","Sub Vertical","Reportable Business","Product Family","Product Line Code","Product Line Desc","Revrec Net\$","Revrec Cost\$","VertRev_Final","Revrec Type");
     
     foreach ($files as $filename) {
 	if ($filename == "Product.csv"){
 	    $product = 1;
+	    $i=0;
+	    $res[$i]=$header;
 	}else {
 	    $product = 0;
 	}
@@ -211,49 +238,96 @@ function merge_ssot($quarter="Q115") {
 	    print "Unable to open file\n";
 	    exit;
 	}
-
-	if ($product == 1){
-	    $header= array("Parent Enduser Group","Rev_Rec_QTR","SO Channel Code","P4 Reporting Ship to GEO","Category","Segment","Vertical","Sub Vertical","Reportable Business","Product Family","Product Line Code","Product Line Desc","Revrec Net\$","Revrec Cost\$","VertRev_Final","Revrec Type");
-	    
-	    if (($buffer = fgets($handle, 4096)) !== false) {
-		$list = str_getcsv($buffer, ",", '"');
-		foreach ($header as $hdr_str) {
-		    $idx = array_search($hdr_str, $list);
-		    if ($idx) {
-			$index[$hdr_str] = $idx;
-		    } else {
-			$index[$hdr_str] = -1;
-		    }
+	# Build index based on header of the current csv file
+	$index = NULL;
+	if (($buffer = fgets($handle, 4096)) !== false) {
+	    $list = str_getcsv($buffer, ",", '"');
+	    foreach ($header as $hdr_str) {
+		$idx = array_search($hdr_str, $list);
+		if ($idx) {
+		    $index[$hdr_str] = $idx;
+		} else {
+		    $index[$hdr_str] = -1;
 		}
 	    }
-//	    print implode(',', $header)."\n";
-	    $i=0;
-	    $res[$i]=$header;
-	}else {
-	    // read the first line from "Service.csv" and ignore it. This is the header.
-	    $buffer = fgets($handle, 4096);
+	    // We do not want to use the PEG values from the SSOT, but redefine separately for FP&A
+		$index["Parent Enduser Group"] = -1;
 	}
 	while (($buffer = fgets($handle, 4096)) !== false) {
 	    $i++;
 	    $list = str_getcsv($buffer, ",", '"');
+	    if (empty(array_filter($list))){
+		continue;
+	    }
 	    foreach ($header as $hdr_str) {
 		if ($index[$hdr_str] == -1){
 		    switch ($hdr_str) {
 			case "Category":
 			    if ($product == 1) {
 				$res[$i][] = "Product";
-			}else {
-			    $res[$i][] = "Service";
+			    }else {	
+				$res[$i][] = "Service";
 			    }
 			break;
 		        case "Parent Enduser Group":
-			    $res[$i][] = $eu_peug[$list[4]];
+			    $PEUG = $list[6];
+			    $PEUG_CAPS = strtoupper($list[6]);
+			    $EU = $list[4];
+			    $EU_CAPS = strtoupper($list[4]);
+			    $PEU = $list[3];
+			    $PEU_CAPS = strtoupper($list[3]);
+			    # Check if the PEG is present in mapping, then use the corresponding group
+			    # Check
+			    if (ISSET($eu_peug[$PEUG_CAPS])){
+				$peg[$i] = $eu_peug[$PEUG_CAPS];
+			    } else if (ISSET($eu_peug[$PEUG])){
+				$peg[$i] = $eu_peug[$PEUG];
+			    } else if (ISSET($eu_peug[$PEU_CAPS]) && (strcasecmp($PEU_CAPS, "unknown") <> 0)){
+				$peg[$i] = $eu_peug[$PEU_CAPS];
+			    } else if (ISSET($eu_peug[$PEU]) && (strcasecmp($PEU, "unknown") <> 0)){
+				$peg[$i] = $eu_peug[$PEU];
+			    } else if (ISSET($eu_peug[$EU_CAPS]) && (strcasecmp($EU_CAPS, "unknown") <> 0)){
+				$peg[$i] = $eu_peug[$EU_CAPS];
+	    		    } else if (ISSET($eu_peug[$EU]) && (strcasecmp($EU, "unknown") <> 0)){
+				$peg[$i] = $eu_peug[$EU];
+	    		    } else {
+				$peg[$i] = $PEUG_CAPS;
+			    }
+			    if (empty($PEUG) && (strcasecmp($PEU, "unknown") == 0)) {
+				if (!empty($EU)){
+                                    # Exception 1: PEG is Empty, EUG is unknown
+				    print "Exception 1,".$buffer."\n";
+				    $peg[$i] = $eu_peug[$EU_CAPS];
+				} else {
+				    # Exception 2: PEG is Empty, EUG is unknown, EU is Empty
+				    print "Exception 2,".$buffer."\n";
+				}
+			    }
+			    # if (!ISSET($eu_peug[$PEUG_CAPS]) && !ISSET($eu_peug[$PEUG]) && (strcasecmp($PEU, "unknown") == 0)) {				
+			    # 	if (!empty($EU)){
+                            #         # Exception 3: PEG is Not Found in Mapping, EUG is unknown
+			    # 	    print "Exception 3,".$buffer."\n";
+			    # 	    $peg[$i] = $eu_peug[$EU_CAPS];
+			    # 	} else {
+			    # 	    # Exception 4: PEG is Not Found in Mapping, EUG is unknown, EU is Empty
+			    # 	    print "Exception 4,".$buffer."\n";
+			    # 	}
+			    # }
+			    $res[$i][] = $peg[$i];
 			break;
 		        case "Vertical":
-			    $res[$i][] = $peug[$eu_peug[$list[4]]][0];
+			    if (ISSET($peug[$peg[$i]])) {
+				$res[$i][] = $peug[$peg[$i]][0];
+			    } else {
+				$res[$i][] = "PARTNER DEPENDENT";
+			    }
 			break;
 		        case "Sub Vertical":
-			    $res[$i][] = $peug[$eu_peug[$list[4]]][1];
+			    if (ISSET($peug[$peg[$i]])) {
+				$res[$i][] = $peug[$peg[$i]][1];
+			    } else {
+				$res[$i][] = "OTHER";
+			    }
 			break;
 		        case "Rev_Rec_QTR":
 			    $res[$i][] = $quarter;
