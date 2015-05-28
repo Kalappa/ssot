@@ -4,6 +4,7 @@ $money = NULL;
 $peug = NULL;
 $eu_peug = NULL;
 $eu_peug_CAPS = NULL;
+$glcode_map = NULL;
 
 $Non_DR_Str = array("CREDIT", "CUSTOM", "DR-1", "DS", "IMMEDIATE", "RETURNS", "POS", "NS", "unknown");
 
@@ -175,6 +176,27 @@ function verify_revenue_adjustment($filename = "test1.csv"){
     return ($OldRevenue == $NewRevenue);
 }
 
+function gl_code($filename = "GLCode.csv"){
+    
+    global $glcode_map;
+
+
+    $handle = @fopen($filename, "r");
+    
+    if (!$handle) {
+	print "Unable to open file\n";
+	exit;
+    }
+    $buffer = fgets($handle, 4096);
+    while (($buffer = fgets($handle, 4096)) !== false) {
+	$list = str_getcsv($buffer, ",", '"');
+	if ($list[2] <> "??"){
+	    $glcode_map[$list[0]][0] = $list[2];
+	}
+	$glcode_map[$list[0]][1] = $list[3];
+    }
+}
+
 function eu_peug($filename = "EU_PEUG.csv"){
     
     global $eu_peug;
@@ -215,6 +237,7 @@ function merge_ssot($quarter="Q115") {
     global $peug;
     global $eu_peug;
     global $eu_peug_CAPS;
+    global $glcode_map;
     $peg = NULL;
 
     #we assume "product.csv comes first :(
@@ -270,6 +293,7 @@ function merge_ssot($quarter="Q115") {
 			    }
 			break;
 		        case "Parent Enduser Group":
+			    $glcode = $list[1];
 			    $PEUG = $list[6];
 			    $PEUG_CAPS = strtoupper($list[6]);
 			    $EU = $list[4];
@@ -278,7 +302,19 @@ function merge_ssot($quarter="Q115") {
 			    $PEU_CAPS = strtoupper($list[3]);
 			    # Check if the PEG is present in mapping, then use the corresponding group
 			    # Check
-			    if (ISSET($eu_peug[$PEUG_CAPS])){
+			    if (ISSET($glcode_map[$glcode][0])){
+				if (ISSET($eu_peug[$glcode_map[$glcode][0]]) || (ISSET($eu_peug[strtoupper($glcode_map[$glcode][0])]))) {
+				    $peg[$i] = $eu_peug[strtoupper($glcode_map[$glcode][0])];
+				} else {
+				    $peg[$i] = strtoupper($glcode_map[$glcode][0]);
+				}
+			    } else if (ISSET($glcode_map[$glcode][1])){
+				if (ISSET($eu_peug[$glcode_map[$glcode][1]]) || ISSET($eu_peug[strtoupper($glcode_map[$glcode][1])])){
+				    $peg[$i] = $eu_peug[strtoupper($glcode_map[$glcode][1])];
+				}else {
+				    $peg[$i] = strtoupper($glcode_map[$glcode][1]);
+				}
+			    } else if (ISSET($eu_peug[$PEUG_CAPS])){
 				$peg[$i] = $eu_peug[$PEUG_CAPS];
 			    } else if (ISSET($eu_peug[$PEUG])){
 				$peg[$i] = $eu_peug[$PEUG];
@@ -345,6 +381,8 @@ function merge_ssot($quarter="Q115") {
 	}    
     }
 }
+
+gl_code();
 eu_peug();
 peug_vert();
 merge_ssot();
