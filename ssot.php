@@ -9,6 +9,7 @@ $mdf = NULL;
 $header = NULL;
 $DEBUG=1;
 $MOAT = NULL;
+$MO_MOAT = NULL;
 $fileCount = 0;
 
 $Non_DR_Str = array("CREDIT", "CUSTOM", "DR-1", "DS", "IMMEDIATE", "RETURNS", "POS", "NS", "unknown");
@@ -184,10 +185,11 @@ function verify_revenue_adjustment_new($res, $outputFile = "final.csv"){
     global $Non_DR_Str;
     global $mdf;
     global $MOAT;
+    global $MO_MOAT;
 
     generate_money_pivot_new($res);
     
-    $handle = @fopen($outputFile, "a+");
+    $handle = @fopen($outputFile, "w+");
   
     $NewRevenue=0;
     $OldRevenue=0;
@@ -211,18 +213,25 @@ function verify_revenue_adjustment_new($res, $outputFile = "final.csv"){
 	$Reportable_Business = $list[8];
 	$Revrec_Net = floatval(str_replace(',', '', $list[12]));
 	$Product_Family=$list[9];
+	$Product_Line_Code = $list[10];
+	$Product_Line_Desc = $list[11];
+	$P4_Reporting_Country = $list[17];
+	$Theater = $list[18];
 	$OldRevenue += $Revrec_Net;
 	$adjRev =  adjustRevenue($Revrec_Net, $Category, $Revrec_Type, $SO_Channel_Code, $Product_Family, $Segment, $P4_Reporting_Ship_to_GEO);
 	$NewRevenue += $adjRev;
 	if ($i != 0 ){
 	    $list[14] = $adjRev;
 	}
-	# if ($Revrec_Net != $adjRev){
-	#     print " Revenue mismatch: ".implode(',', $list)."\n";
-	# }
-	$MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$P4_Reporting_Ship_to_GEO][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][0] += $Revrec_Net;
-	$MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$P4_Reporting_Ship_to_GEO][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][1] += 1;
-	$MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$P4_Reporting_Ship_to_GEO][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][2] += $adjRev;
+
+	$MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][0] += $Revrec_Net;
+	$MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][1] += 1;
+	$MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][2] += $adjRev;
+
+	$MO_MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][$Product_Line_Desc][$Product_Line_Code][0] += $Revrec_Net;
+	$MO_MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][$Product_Line_Desc][$Product_Line_Code][1] += 1;
+	$MO_MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][$Product_Line_Desc][$Product_Line_Code][2] += $adjRev;
+
 	fputcsv($handle,$list);
 	if ($list[3] == "North America" || $list[3] == "Latin America"){ 
 	    $Region = "North America";
@@ -316,6 +325,7 @@ function eu_peug($filename = "EU_PEUG.csv"){
 	$list = str_getcsv($buffer, ",", '"');
 	$eu_peug[$list[0]] = $list[1];
     }
+#    print_r($eu_peug);
 }
 
 function peug_vert($filename = "PEUG_VERT.csv"){
@@ -354,7 +364,7 @@ function merge_ssot($quarter="Q115", $files) {
 	exit;
     }
 
-    $header= array("Parent Enduser Group","Rev_Rec_QTR","SO Channel Code","P4 Reporting Ship to GEO","Category","Segment","Vertical","Sub Vertical","Reportable Business","Product Family","Product Line Code","Product Line Desc","Revrec Net\$","Revrec Cost\$","VertRev_Final","Revrec Type", "Pulse", "P4 Reporting Ship to Country");
+    $header= array("Parent Enduser Group","Rev_Rec_QTR","SO Channel Code","P4 Reporting Ship to GEO","Category","Segment","Vertical","Sub Vertical","Reportable Business","Product Family","Product Line Code","Product Line Desc","Revrec Net\$","Revrec Cost\$","VertRev_Final","Revrec Type", "Pulse", "P4 Reporting Ship to Country", "Theater");
     
     foreach ($files as $filename) {
 	if (strpos($filename,'Product') !== false) {
@@ -364,7 +374,7 @@ function merge_ssot($quarter="Q115", $files) {
 	}else {
 	    $product = 0;
 	}
-
+	
 	$handle = @fopen($filename, "r");
 	
 	if (!$handle) {
@@ -383,8 +393,9 @@ function merge_ssot($quarter="Q115", $files) {
 		    $index[$hdr_str] = -1;
 		}
 	    }
-	    // We do not want to use the PEG values from the SSOT, but redefine separately for FP&A
-		$index["Parent Enduser Group"] = -1;
+	    # We do not want to use the PEG values from the SSOT, but redefine separately for FP&A
+	    $index["Parent Enduser Group"] = -1;
+	    #$index["P4 Reporting Ship to GEO"] = -1;
 	}
 	while (($buffer = fgets($handle, 4096)) !== false) {
 	    $i++;
@@ -394,7 +405,8 @@ function merge_ssot($quarter="Q115", $files) {
 	    }
 	    $glcode = $list[1];
 	    $prodLineDesc = $list[23];
-	    $country = $list[18];
+	    $country = $list[20];
+	    $Geo = $list[14];
 	    foreach ($header as $hdr_str) {
 		if ($index[$hdr_str] == -1){
 		    switch ($hdr_str) {
@@ -483,7 +495,7 @@ function merge_ssot($quarter="Q115", $files) {
 			    $res[$i][] = $list[0];
 			break;
 		      	case "Pulse": {
-			    if (stripos($buffer, "pulse")){
+			    if (preg_match("/pulse/i", $buffer)){
 				$res[$i][] = "Y";
 			    } else {
 				$res[$i][] = "N";
@@ -493,6 +505,13 @@ function merge_ssot($quarter="Q115", $files) {
 		      	case "P4 Reporting Ship to Country": {
 			    $res[$i][] = $country;
 			    break;
+			}
+		      	case "Theater": {
+			    if ($Geo == "North America" || $Geo == "Latin America"){
+				$res[$i][] = "AMER";
+			    }else {
+				$res[$i][] = $Geo;
+			    }
 			}
 		      default:
 			$res[$i][] = "To be filled";
@@ -505,9 +524,11 @@ function merge_ssot($quarter="Q115", $files) {
     }
     fclose($handleException);
 }
+
 function genAggregatedTable($outputAggregateFile = "Aggregate.csv", $outputStandaloneFile){
 
     global $MOAT;
+    global $MO_MOAT;
     global $fileCount;
 
     if ($fileCount == 0){
@@ -527,24 +548,30 @@ function genAggregatedTable($outputAggregateFile = "Aggregate.csv", $outputStand
         exit;
     }
 
+    $header= array("Parent_Enduser_Group","Revrec_Qtr","SO_Channel_Code","Theater","Category","Segment","Vertical","Sub_Vertical","Reportable_Business","Product_Family","OrigRevrec_Net\$","Revrec_Cost\$","Vert_Rev_Final\$", "Pulse");
     if ($fileCount == 0) {
-	$header= array("Parent Enduser Group","Rev_Rec_QTR","SO Channel Code","P4 Reporting Ship to GEO","Category","Segment","Vertical","Sub Vertical","Reportable Business","Product Family","Revrec Net\$","Revrec Cost\$","VertRev_Final");
 	fputcsv($handle, $header);
-	fputcsv($handleStandalone, $header);
     }
+    fputcsv($handleStandalone, $header);
+    
     foreach ($MOAT as $Parent_Enduser_Group => $list1){
 	foreach ($list1 as $Revrec_Qtr => $list2){
 	    foreach ($list2 as $So_Channel_Code => $list3){
-		foreach ($list3 as $P4_Reporting_Ship_to_GEO => $list4){
+		foreach ($list3 as $Theater => $list4){
 		    foreach ($list4 as $Category => $list5){
 			foreach ($list5 as $Segment => $list6){
 			    foreach ($list6 as $Vertical => $list7) {
 				foreach ($list7 as $Sub_Vertical => $list8){
 				    foreach ($list8 as $Reportable_Business => $list9){
 					foreach ($list9 as $Product_Family => $list10){
-					    if (strcmp($Parent_Enduser_Group, "Parent Enduser Group") != 0) { 
-						fputcsv($handle, array($Parent_Enduser_Group, $Revrec_Qtr, $So_Channel_Code, $P4_Reporting_Ship_to_GEO, $Category, $Segment, $Vertical, $Sub_Vertical, $Reportable_Business, $Product_Family, $list10[0], $list10[1], $list10[2]));
-						fputcsv($handleStandalone, array($Parent_Enduser_Group, $Revrec_Qtr, $So_Channel_Code, $P4_Reporting_Ship_to_GEO, $Category, $Segment, $Vertical, $Sub_Vertical, $Reportable_Business, $Product_Family, $list10[0], $list10[1], $list10[2]));
+					    if (preg_match("/pulse/i", $Product_Family)){
+						$pulse = "Y";
+					    } else {
+						$pulse = "N";
+					    }
+					    if (strcmp($Parent_Enduser_Group, "Parent_Enduser_Group") != 0) { 
+						fputcsv($handle, array($Parent_Enduser_Group, $Revrec_Qtr, $So_Channel_Code, $Theater, $Category, $Segment, $Vertical, $Sub_Vertical, $Reportable_Business, $Product_Family, $list10[0], $list10[1], $list10[2], $pulse));
+						fputcsv($handleStandalone, array($Parent_Enduser_Group, $Revrec_Qtr, $So_Channel_Code, $Theater, $Category, $Segment, $Vertical, $Sub_Vertical, $Reportable_Business, $Product_Family, $list10[0], $list10[1], $list10[2], $pulse));
 					    }
 					}
 				    }
@@ -560,11 +587,79 @@ function genAggregatedTable($outputAggregateFile = "Aggregate.csv", $outputStand
     fclose($handleStandalone);
 }
 
-function addPulseData($outputAggregateFile = "Aggregate.csv"){
+
+function genAggregatedTableProduct($outputAggregateFile = "Aggregate.csv", $outputStandaloneFile){
 
     global $MOAT;
+    global $MO_MOAT;
+    global $fileCount;
+
+    if ($fileCount == 0){
+	$handle = @fopen($outputAggregateFile, "w+");
+    }else {
+	$handle = @fopen($outputAggregateFile, "a+");
+    }
+    if (! $handle) {
+        print " Unable to Open File";
+        exit;
+    }
+
+    $handleStandalone = @fopen($outputStandaloneFile, "w");
+
+    if (! $handle) {
+        print " Unable to Open File";
+        exit;
+    }
+
+    $header= array("Parent_Enduser_Group","Revrec_Qtr","SO_Channel_Code","Theater","Category","Segment","Vertical","Sub_Vertical","Reportable_Business","Product_Family","Product_Line_Desc", "Product_Line_Code", "OrigRevrec_Net\$","Revrec_Cost\$","Vert_Rev_Final\$", "Pulse");
+    if ($fileCount == 0) {
+	fputcsv($handle, $header);
+    }
+    fputcsv($handleStandalone, $header);
+    
+    foreach ($MO_MOAT as $Parent_Enduser_Group => $list1){
+	foreach ($list1 as $Revrec_Qtr => $list2){
+	    foreach ($list2 as $So_Channel_Code => $list3){
+		foreach ($list3 as $Theater => $list4){
+		    foreach ($list4 as $Category => $list5){
+			foreach ($list5 as $Segment => $list6){
+			    foreach ($list6 as $Vertical => $list7) {
+				foreach ($list7 as $Sub_Vertical => $list8){
+				    foreach ($list8 as $Reportable_Business => $list9){
+					foreach ($list9 as $Product_Family => $list10){
+					    foreach ($list10 as $Product_Line_Desc => $list11){
+						foreach ($list11 as $Product_Line_Code => $list12){
+						    if (preg_match("/pulse/i", $Product_Family)){
+							$pulse = "Y";
+						    } else {
+							$pulse = "N";
+						    }
+						    if (strcmp($Parent_Enduser_Group, "Parent_Enduser_Group") != 0) { 
+							fputcsv($handle, array($Parent_Enduser_Group, $Revrec_Qtr, $So_Channel_Code, $Theater, $Category, $Segment, $Vertical, $Sub_Vertical, $Reportable_Business, $Product_Family, $Product_Line_Desc, $Product_Line_Code, $list12[0], $list12[1], $list12[2], $pulse));
+							fputcsv($handleStandalone, array($Parent_Enduser_Group, $Revrec_Qtr, $So_Channel_Code, $Theater, $Category, $Segment, $Vertical, $Sub_Vertical, $Reportable_Business, $Product_Family, $Product_Line_Desc, $Product_Line_Code, $list12[0], $list12[1], $list12[2], $pulse));
+						    }
+						}
+					    }
+					}
+				    }
+				}
+			    }
+			}
+		    }
+		}
+	    }
+	}
+    }
+    fclose($handle);
+    fclose($handleStandalone);
+}
+
+function addPulseData($outputAggregateFile = "Aggregate.csv", $qtr){
+
+    global $MOAT;
+    global $MO_MOAT;
     $handle = @fopen($outputAggregateFile, "a+");
-    $handlePulse = @fopen("PulseService.csv", "r");
+    $handlePulse = @fopen("ssot_all/".$qtr."_ServicePulse.csv", "r");
 
     if (! $handle) {
         print " Unable to Open Aggregated File";
@@ -573,7 +668,7 @@ function addPulseData($outputAggregateFile = "Aggregate.csv"){
 
     if (! $handlePulse) {
         print " Unable to Open File PulseService";
-        exit;
+	return;
     }
     $buffer = fgets($handlePulse, 4096);
     while (($buffer = fgets($handlePulse, 4096)) !== false) {
@@ -595,7 +690,7 @@ foreach ($argv as $entry) {
 	}
     }
 }
-#print_r($fileList);
+print_r($fileList);
 print "Genrating Mapings for Unknown Entries in SSOT ... \n";
 gl_code("GLCode.csv");
 print "Ingest the latest Parent Enguser Group Mappings ... \n";
@@ -605,19 +700,27 @@ peug_vert("PEUG_VERT.csv");
 print "Generating the final SSOT, w/ Adjuted Revenue Computation ... \n";
 
 foreach ($fileList as $qtr => $files) {
-    $output = "results/Aggregated_Q113_Q115.csv";
+    print "Working on $qtr .. \n";
+    $output = "results/VerticalRevenue_Q113_Q115.csv";
+    $outputProduct = "results/VerticalRevenue_ProductLine_Q113_Q115.csv";
     $outputFinal = "results/".$qtr."_Final.csv";
-    $outputAggregated = "results/".$qtr."_Aggregated.csv";
+    $outputAggregatedStandalone = "results/".$qtr."_VerticalRevenue.csv";
+    $outputAggregatedStandaloneProduct = "results/".$qtr."_VerticalRevenue_Product.csv";
     merge_ssot($qtr, $files);
     print "$qtr: Applying Revenue Adjustment and Verifying the Total Revenue per Quarter ... \n";
     verify_revenue_adjustment_new($res, $outputFinal);
     genMDF($qtr,"MDF.csv",$outputFinal);
-    genAggregatedTable($output, $outputAggregated);
+    genAggregatedTable($output, $outputAggregatedStandalone);
+    genAggregatedTableProduct($outputProduct, $outputAggregatedStandaloneProduct);
+    addPulseData($output, $qtr);
+    addPulseData($outputAggregatedStandalone, $qtr);
     $fileCount++;
     $res = NULL;
     $money = NULL;
     $mdf = NULL;
     $MOAT = NULL;    
+    $MO_MOAT = NULL;
 }
+
 
 ?>
