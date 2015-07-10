@@ -23,8 +23,8 @@ function genMDF($quarter="Q115", $mdfFile = "MDF.csv", $outputFile = "final.csv"
     $handleWriter = @fopen($outputFile, "a+");
 
     if (! $handle) {
-        print " Unable to Open File";
-        exit;
+        print " Unable to Open File $mdfFile \n";
+        return;
     }
 
     while (($buffer = fgets($handle, 4096)) !== false) {
@@ -88,6 +88,87 @@ function genMDF($quarter="Q115", $mdfFile = "MDF.csv", $outputFile = "final.csv"
     fclose($handleWriter);
 }
 
+function genMDFAggregate($quarter="Q115", $mdfFile = "MDF.csv", $outputFile = "final.csv", $product = 0){
+
+    global $mdf;
+
+    $handle = @fopen($mdfFile, "r");
+
+    $handleWriter = @fopen($outputFile, "a+");
+
+    if (! $handle) {
+        print " Unable to Open File: $outputFile \n";
+        return;
+    }
+
+    while (($buffer = fgets($handle, 4096)) !== false) {
+	$list = str_getcsv($buffer, ",", '"');
+	$mdfInput[$list[0]]=$list[1];
+    }
+#    print_r($mdfInput);
+    foreach ($mdf as $region => $sublist1){
+	foreach($sublist1 as $bu => $sublist2){
+	    foreach ($sublist2 as $vertical => $sublist3){
+		foreach ($sublist3 as $subvertical => $value) {
+		    $sum[$region." - ".$bu] += $value;
+		}
+	    }
+	}
+    }
+#    print_r($mdf);
+    foreach ($mdf as $region => $sublist1){
+    	foreach($sublist1 as $bu => $sublist2){
+    	    foreach ($sublist2 as $vertical => $sublist3){
+    		foreach ($sublist3 as $subvertical => $value) {
+		    $reg_bu = $region." - ".$bu;
+		    $adj = $mdf[$region][$bu][$vertical][$subvertical]*$mdfInput[$reg_bu]/($sum[$reg_bu]-$mdfInput[$reg_bu]);
+    		    $mdf_adj[$region][$bu][$vertical][$subvertical] = $adj;
+		    if ($vertical != "PARTNER DEPENDENT"){
+			$partAdjust[$reg_bu] += $adj;
+		    }
+    		}
+    	    }
+    	}
+    }
+#    print_r($mdf_adj);
+    $sum=0;
+    if ($product == 0) {
+	$str= array("MDF_PartAdv_Adj",$quarter,"MDF_PartAdv_Adj",4,"Product","MDF_PartAdv_Adj",4,4,4,"MDF_PartAdv_Adj","MDF_PartAdv_Adj","MDF_PartAdv_Adj",4,"MDF_PartAdv_Adj");
+	$vertIndex = 12;
+    }else {
+	$str= array("MDF_PartAdv_Adj",$quarter,"MDF_PartAdv_Adj",4,"Product","MDF_PartAdv_Adj",4,4,4,"MDF_PartAdv_Adj","MDF_PartAdv_Adj","MDF_PartAdv_Adj","MDF_PartAdv_Adj","MDF_PartAdv_Adj",4,"MDF_PartAdv_Adj");
+	$vertIndex = 14;
+    }
+    foreach ($mdf_adj as $region => $sublist1){
+    	foreach($sublist1 as $bu => $sublist2){
+    	    foreach ($sublist2 as $vertical => $sublist3){
+    		foreach ($sublist3 as $subvertical => $value) {
+		    $str[3] = $region;
+		    $str[6] = $vertical;
+		    $str[7] = $subvertical;
+		    $str[8] = $bu;
+		    if ($vertical == "PARTNER DEPENDENT"){
+			if ($subvertical != "OTHER"){
+			    print "Raise Hell\n";
+			    exit;
+			}
+			$str[$vertIndex] = -1 * $partAdjust[$region." - ".$bu]*1000000;
+			print "PARTNER: ".$str[$vertIndex]."\n";
+		    } else { 
+			$str[$vertIndex] = $value*1000000;
+		    }
+		    $sum += $str[$vertIndex];
+		    fputcsv($handleWriter,$str);		   
+    		}
+    	    }
+    	}
+    }
+    print "MDF Sum = ".intval($sum)."\n";
+    fclose($handle);
+    fclose($handleWriter);
+}
+
+
 function adjustRevenue($Revrec_Net, $Category, $Revrec_Type, $SO_Channel_Code, $Product_Family, $Segment, $P4_Reporting_Ship_to_GEO) {
     
     global $money;
@@ -125,7 +206,7 @@ function generate_money_pivot($filename = "test1.csv") {
     $handle = @fopen($filename, "r");
 
     if (! $handle) {
-        print " Unable to Open File";
+        print " Unable to Open File $filename \n";
         exit;
     }
 
@@ -234,7 +315,7 @@ function verify_revenue_adjustment_new($res, $outputFile = "final.csv"){
 
 	fputcsv($handle,$list);
 	if ($list[3] == "North America" || $list[3] == "Latin America"){ 
-	    $Region = "North America";
+	    $Region = "AMER";
 	}else {
 	    $Region = $list[3];
 	}
@@ -260,7 +341,7 @@ function verify_revenue_adjustment($filename = "test1.csv"){
     $handle = @fopen($filename, "r");
     
     if (!$handle) {
-        print "Unable to open file\n";
+        print "Unable to open file $filename \n";
         exit;
     }
     $NewRevenue=0;
@@ -295,7 +376,7 @@ function gl_code($filename = "GLCode.csv"){
     $handle = @fopen($filename, "r");
     
     if (!$handle) {
-	print "Unable to open file\n";
+	print "Unable to open file $filename \n";
 	exit;
     }
     $buffer = fgets($handle, 4096);
@@ -318,7 +399,7 @@ function eu_peug($filename = "EU_PEUG.csv"){
     $handle = @fopen($filename, "r");
     
     if (!$handle) {
-	print "Unable to open file\n";
+	print "Unable to open file $filename \n";
 	exit;
     }
     while (($buffer = fgets($handle, 4096)) !== false) {
@@ -335,7 +416,7 @@ function peug_vert($filename = "PEUG_VERT.csv"){
     $handle = @fopen($filename, "r");
     
     if (!$handle) {
-	print "Unable to open file\n";
+	print "Unable to open file $filename \n";
 	exit;
     }
     while (($buffer = fgets($handle, 4096)) !== false) {
@@ -360,7 +441,7 @@ function merge_ssot($quarter="Q115", $files) {
     $handleException = @fopen("exception.csv", "w");
     
     if (!$handleException) {
-	print "Unable to open file\n";
+	print "Unable to open file exception.csv \n";
 	exit;
     }
 
@@ -378,7 +459,7 @@ function merge_ssot($quarter="Q115", $files) {
 	$handle = @fopen($filename, "r");
 	
 	if (!$handle) {
-	    print "Unable to open file\n";
+	    print "Unable to open file $filename\n";
 	    exit;
 	}
 	# Build index based on header of the current csv file
@@ -537,14 +618,14 @@ function genAggregatedTable($outputAggregateFile = "Aggregate.csv", $outputStand
 	$handle = @fopen($outputAggregateFile, "a+");
     }
     if (! $handle) {
-        print " Unable to Open File";
+        print " Unable to Open File $outputAggregateFile \n";
         exit;
     }
 
     $handleStandalone = @fopen($outputStandaloneFile, "w");
 
     if (! $handle) {
-        print " Unable to Open File";
+        print " Unable to Open File $outputStandaloneFile \n";
         exit;
     }
 
@@ -600,14 +681,14 @@ function genAggregatedTableProduct($outputAggregateFile = "Aggregate.csv", $outp
 	$handle = @fopen($outputAggregateFile, "a+");
     }
     if (! $handle) {
-        print " Unable to Open File";
+        print " Unable to Open File $outputAggregateFile \n";
         exit;
     }
 
     $handleStandalone = @fopen($outputStandaloneFile, "w");
 
     if (! $handle) {
-        print " Unable to Open File";
+        print " Unable to Open File $outputStandaloneFile \n";
         exit;
     }
 
@@ -654,7 +735,7 @@ function genAggregatedTableProduct($outputAggregateFile = "Aggregate.csv", $outp
     fclose($handleStandalone);
 }
 
-function addPulseData($outputAggregateFile = "Aggregate.csv", $qtr){
+function addPulseData($outputAggregateFile = "Aggregate.csv", $qtr, $shift=0){
 
     global $MOAT;
     global $MO_MOAT;
@@ -662,17 +743,21 @@ function addPulseData($outputAggregateFile = "Aggregate.csv", $qtr){
     $handlePulse = @fopen("ssot_all/".$qtr."_ServicePulse.csv", "r");
 
     if (! $handle) {
-        print " Unable to Open Aggregated File";
+        print " Unable to Open Aggregated File $outputAggregateFile\n";
         exit;
     }
 
     if (! $handlePulse) {
-        print " Unable to Open File PulseService";
+        print " Unable to Open File PulseService \n";
 	return;
     }
     $buffer = fgets($handlePulse, 4096);
+    $filler = array("Pulse","Pulse");
     while (($buffer = fgets($handlePulse, 4096)) !== false) {
 	$list = str_getcsv($buffer, ",", '"');
+	if ($shift) {
+	    array_splice($list, 10, 0, $filler); 
+	}
 	fputcsv($handle, $list);
     }
     fclose($handle);
@@ -686,11 +771,11 @@ foreach ($argv as $entry) {
 	preg_match('/\d\d(\d\d)\_(.*?)\_(.*?)\.csv/', $entry, $matches);
 #	print_r($matches);
 	if ($matches){
-	    $fileList[$matches[2].$matches[1]][]=realpath($entry);
+	    $fileList[$matches[1]][$matches[2].$matches[1]][]=realpath($entry);
 	}
     }
 }
-print_r($fileList);
+#print_r($fileList);
 print "Genrating Mapings for Unknown Entries in SSOT ... \n";
 gl_code("GLCode.csv");
 print "Ingest the latest Parent Enguser Group Mappings ... \n";
@@ -699,27 +784,40 @@ print "Ingest the latest Parent Enguser Group to Vertical and Subvertical Mappin
 peug_vert("PEUG_VERT.csv");
 print "Generating the final SSOT, w/ Adjuted Revenue Computation ... \n";
 
-foreach ($fileList as $qtr => $files) {
-    print "Working on $qtr .. \n";
-    $output = "results/VerticalRevenue_Q113_Q115.csv";
-    $outputProduct = "results/VerticalRevenue_ProductLine_Q113_Q115.csv";
-    $outputFinal = "results/".$qtr."_Final.csv";
-    $outputAggregatedStandalone = "results/".$qtr."_VerticalRevenue.csv";
-    $outputAggregatedStandaloneProduct = "results/".$qtr."_VerticalRevenue_Product.csv";
-    merge_ssot($qtr, $files);
-    print "$qtr: Applying Revenue Adjustment and Verifying the Total Revenue per Quarter ... \n";
-    verify_revenue_adjustment_new($res, $outputFinal);
-    genMDF($qtr,"MDF.csv",$outputFinal);
-    genAggregatedTable($output, $outputAggregatedStandalone);
-    genAggregatedTableProduct($outputProduct, $outputAggregatedStandaloneProduct);
-    addPulseData($output, $qtr);
-    addPulseData($outputAggregatedStandalone, $qtr);
-    $fileCount++;
-    $res = NULL;
-    $money = NULL;
-    $mdf = NULL;
-    $MOAT = NULL;    
-    $MO_MOAT = NULL;
+foreach ($fileList as $year => $list1) {
+    $outputProduct = "results/VerticalRevenue_ProductLine_20$year.csv";
+    foreach ($list1 as $qtr => $files) {
+	print "Working on $qtr .. \n";
+	$outputFinal = "results/".$qtr."_Final.csv";
+	$outputAggregatedStandalone = "results/".$qtr."_VerticalRevenue.csv";
+	$outputAggregatedStandaloneProduct = "results/".$qtr."_VerticalRevenue_Product.csv";
+	$output = "results/VerticalRevenue.csv";
+	$mdfFile = "ssot_all/".$qtr."_MDF.csv";
+	print "$qtr: Merge SSOTs, Collect all quarter data ... \n";
+	merge_ssot($qtr, $files);
+	print "$qtr: Applying Revenue Adjustment and Verifying the Total Revenue per Quarter ... \n";
+	verify_revenue_adjustment_new($res, $outputFinal);
+	print "$qtr: Generating MDF Adjustments ... \n";
+	genMDF($qtr,$mdfFile,$outputFinal);
+	print "$qtr: Generating Aggregate Table  ... \n";
+	genAggregatedTable($output, $outputAggregatedStandalone);
+	print "$qtr: Generating Aggregate Table w/ Product  ... \n";
+	genAggregatedTableProduct($outputProduct, $outputAggregatedStandaloneProduct);
+	print "$qtr: Adding Pulse Data  ... \n";
+	addPulseData($output, $qtr);
+	print "$qtr: Adding Pulse Data w/ Product ... \n";
+	addPulseData($outputProduct, $qtr, 1);
+	print "$qtr: Generating MDF Adjustment for Aggregate  ... \n";
+	genMDFAggregate($qtr,$mdfFile,$output, 0);
+	print "$qtr: Generating MDF Adjustment for Aggregate w/ Product ... \n";
+	genMDFAggregate($qtr,$mdfFile,$outputProduct, 1);
+	$fileCount++;
+	$res = NULL;
+	$money = NULL;
+	$mdf = NULL;
+	$MOAT = NULL;    
+	$MO_MOAT = NULL;
+    }
 }
 
 
