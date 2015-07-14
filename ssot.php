@@ -786,12 +786,12 @@ print "Generating the final SSOT, w/ Adjuted Revenue Computation ... \n";
 
 foreach ($fileList as $year => $list1) {
     $outputProduct = "results/VerticalRevenue_ProductLine_20$year.csv";
+    $output = "results/VerticalRevenue_20$year.csv";
     foreach ($list1 as $qtr => $files) {
 	print "Working on $qtr .. \n";
 	$outputFinal = "results/".$qtr."_Final.csv";
 	$outputAggregatedStandalone = "results/".$qtr."_VerticalRevenue.csv";
 	$outputAggregatedStandaloneProduct = "results/".$qtr."_VerticalRevenue_Product.csv";
-	$output = "results/VerticalRevenue.csv";
 	$mdfFile = "ssot_all/".$qtr."_MDF.csv";
 	print "$qtr: Merge SSOTs, Collect all quarter data ... \n";
 	merge_ssot($qtr, $files);
