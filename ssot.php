@@ -12,7 +12,7 @@ $MOAT = NULL;
 $MO_MOAT = NULL;
 $fileCount = 0;
 
-$Non_DR_Str = array("CREDIT", "CUSTOM", "DR-1", "DS", "IMMEDIATE", "RETURNS", "POS", "NS", "unknown");
+$Non_DR_Str = array("CREDIT", "CUSTOM", "DS", "IMMEDIATE", "RETURNS", "POS", "NS", "unknown");
 
 function genMDF($quarter="Q115", $mdfFile = "MDF.csv", $outputFile = "final.csv"){
 
@@ -197,42 +197,6 @@ function adjustRevenue($Revrec_Net, $Category, $Revrec_Type, $SO_Channel_Code, $
         }
     }
 }
-                            
-function generate_money_pivot($filename = "test1.csv") {
-    
-    global $money;
-    global $Non_DR_Str;
-
-    $handle = @fopen($filename, "r");
-
-    if (! $handle) {
-        print " Unable to Open File $filename \n";
-        exit;
-    }
-
-    while (($buffer = fgets($handle, 4096)) !== false) {
-	$list = str_getcsv($buffer, ",", '"');
-	$Category = $list[0];
-	if ($list[18] != "INDIRECT-DISTI"){
-	    continue;
-	}
-	if ($Category != "Product"){
-	    continue;
-	}
-	if ($list[3] == "DR") {
-	    $Revrec_Type = $list[3];
-	} else {
-	    $Revrec_Type = str_replace($Non_DR_Str, "NON-DR", $list[3]);
-	}
-	$P4_Reporting_Ship_to_GEO = $list[17];
-	$Revrec_Net = $list[24];
-	$Segment = $list[26];
-	$Product_Family=$list[32];
-	$money[$Product_Family][$Segment][$P4_Reporting_Ship_to_GEO][$Revrec_Type] += floatval(str_replace(',', '', $Revrec_Net));
-    }
-    //    print_r($money);
-}
-
 function generate_money_pivot_new($res) {
 
     global $money;
@@ -241,16 +205,19 @@ function generate_money_pivot_new($res) {
     $money = NULL;
     foreach ($res as $index => $list) {
 	$Category = $list[4];
+	if ($list[15] == "DR" || $list[15] == "DR-1") {
+	    $Revrec_Type = "DR";
+	    if ($list[2] == ""){
+		$list[2] = "INDIRECT-DISTI";
+	    }
+	} else {
+	    $Revrec_Type = str_replace($Non_DR_Str, "NON-DR", $list[15]);
+	}
 	if ($list[2] != "INDIRECT-DISTI"){
 	    continue;
 	}
 	if ($Category != "Product"){
 	    continue;
-	}
-	if ($list[15] == "DR") {
-	    $Revrec_Type = $list[15];
-	} else {
-	    $Revrec_Type = str_replace($Non_DR_Str, "NON-DR", $list[15]);
 	}
 	$P4_Reporting_Ship_to_GEO = $list[3];
 	$Revrec_Net = $list[12];
@@ -278,8 +245,12 @@ function verify_revenue_adjustment_new($res, $outputFile = "final.csv"){
     foreach ($res as $list) {
 	$Category = $list[4];
 	$SO_Channel_Code = $list[2];
-	if ($list[15] == "DR") {
-	    $Revrec_Type = $list[15];
+	if ($list[15] == "DR" || $list[15] == "DR-1") {
+	    $Revrec_Type = "DR";
+	    if ($list[2] == ""){
+		$SO_Channel_Code = "INDIRECT-DISTI";
+		$list[2] = "INDIRECT-DISTI";
+	    }
 	} else {
 	    $Revrec_Type = str_replace($Non_DR_Str, "NON-DR", $list[15]);
 	}
@@ -298,6 +269,7 @@ function verify_revenue_adjustment_new($res, $outputFile = "final.csv"){
 	$Product_Line_Desc = $list[11];
 	$P4_Reporting_Country = $list[17];
 	$Theater = $list[18];
+	$Revrec_Cost = $list[13];
 	$OldRevenue += $Revrec_Net;
 	$adjRev =  adjustRevenue($Revrec_Net, $Category, $Revrec_Type, $SO_Channel_Code, $Product_Family, $Segment, $P4_Reporting_Ship_to_GEO);
 	$NewRevenue += $adjRev;
@@ -306,11 +278,11 @@ function verify_revenue_adjustment_new($res, $outputFile = "final.csv"){
 	}
 
 	$MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][0] += $Revrec_Net;
-	$MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][1] += 1;
+	$MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][1] += $Revrec_Cost;
 	$MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][2] += $adjRev;
 
 	$MO_MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][$Product_Line_Desc][$Product_Line_Code][0] += $Revrec_Net;
-	$MO_MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][$Product_Line_Desc][$Product_Line_Code][1] += 1;
+	$MO_MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][$Product_Line_Desc][$Product_Line_Code][1] += $Revrec_Cost;
 	$MO_MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][$Product_Line_Desc][$Product_Line_Code][2] += $adjRev;
 
 	fputcsv($handle,$list);
@@ -330,41 +302,6 @@ function verify_revenue_adjustment_new($res, $outputFile = "final.csv"){
     fclose($handle);
     print "Old Revenue = ". round($OldRevenue,0)."\n";
     print "New Revenue = ". round($NewRevenue,0)."\n";
-    return ($OldRevenue == $NewRevenue);
-}
-
-
-function verify_revenue_adjustment($filename = "test1.csv"){
-    
-    generate_money_pivot($filename);
-
-    $handle = @fopen($filename, "r");
-    
-    if (!$handle) {
-        print "Unable to open file $filename \n";
-        exit;
-    }
-    $NewRevenue=0;
-    $OldRevenue=0;
-    
-    while (($buffer = fgets($handle, 4096)) !== false) {
-	$list = str_getcsv($buffer, ",", '"');
-	$Category = $list[0];
-	$SO_Channel_Code = $list[18];
-	if ($list[3] == "DR") {
-	    $Revrec_Type = $list[3];
-	} else {
-	    $Revrec_Type = str_replace($Non_DR, "NON-DR", $list[3]);
-	}
-	$P4_Reporting_Ship_to_GEO = $list[17];
-	$Revrec_Net = floatval(str_replace(',', '', $list[24]));
-	$Segment = $list[26];
-	$Product_Family=$list[32];
-	$OldRevenue += $Revrec_Net;
-	$NewRevenue += adjustRevenue($Revrec_Net, $Category, $Revrec_Type, $SO_Channel_Code, $Product_Family, $Segment, $P4_Reporting_Ship_to_GEO);
-    }
-    print "Old Revenue = ". $OldRevenue."\n";
-    print "New Revenue = ". $NewRevenue."\n";
     return ($OldRevenue == $NewRevenue);
 }
 
