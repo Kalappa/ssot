@@ -5,6 +5,8 @@ $peug = NULL;
 $eu_peug = NULL;
 $eu_peug_CAPS = NULL;
 $glcode_map = NULL;
+$pf_map = NULL;
+$bu_map = NULL;
 $mdf = NULL;
 $header = NULL;
 $DEBUG=1;
@@ -328,6 +330,35 @@ function gl_code($filename = "GLCode.csv"){
 #    print_r($glcode_map);
 }
 
+function pfgroup_map($filename = "ssot_all/PFGrouping.csv"){
+    
+    global $pf_map;
+    global $bu_map;
+
+    $handle = @fopen($filename, "r");
+    
+    if (!$handle) {
+	print "Unable to open file $filename\n";
+	exit;
+    }
+    $buffer = fgets($handle, 4096);
+    while (($buffer = fgets($handle, 4096)) !== false) {
+	$list = str_getcsv($buffer, ",", '"');
+	$oldProdFamily = $list[0];
+	$oldProdDesc = $list[1];
+	$newProdDesc = $list[2];
+	$newProdFamily = $list[3];
+	$newBu = $list[4];
+	# Index 0 is the new product line desc
+	$pf_map[$oldProdFamily][$oldProdDesc][0]=$newProdDesc;
+	# Index 1 is the new product family
+	$pf_map[$oldProdFamily][$oldProdDesc][1]=$newProdFamily;
+	# Index 1 is the new product family
+	$bu_map[$oldProdFamily]=$newBu;
+    }
+#    print_r($pf_map);
+}
+
 function eu_peug($filename = "EU_PEUG.csv"){
     
     global $eu_peug;
@@ -371,6 +402,8 @@ function merge_ssot($quarter="Q115", $files) {
     global $eu_peug_CAPS;
     global $glcode_map;
     global $header;
+    global $pf_map;
+    global $bu_map;
     $peg = NULL;
 
     #we assume "product.csv comes first :(
@@ -413,7 +446,10 @@ function merge_ssot($quarter="Q115", $files) {
 	    }
 	    # We do not want to use the PEG values from the SSOT, but redefine separately for FP&A
 	    $index["Parent Enduser Group"] = -1;
-	    #$index["P4 Reporting Ship to GEO"] = -1;
+	    # Product family mapping for Security Legacy
+	    $index["Product Family"] = -1;
+	    $index["Product Line Desc"] = -1;
+	    $index["Reportable Business"] = -1;
 	}
 	while (($buffer = fgets($handle, 4096)) !== false) {
 	    $i++;
@@ -422,12 +458,37 @@ function merge_ssot($quarter="Q115", $files) {
 		continue;
 	    }
 	    $glcode = $list[1];
-	    $prodLineDesc = $list[23];
+	    $glcode_segment = $list[23];
+	    $prodLineDesc = $list[25];
+	    $prodFamily = $list[29];
 	    $country = $list[20];
 	    $Geo = $list[14];
 	    foreach ($header as $hdr_str) {
 		if ($index[$hdr_str] == -1){
 		    switch ($hdr_str) {
+			case "Reportable Business":
+			    if (ISSET($bu_map[$prodFamily])){
+				$res[$i][] = $bu_map[$prodFamily];
+			    } else {
+			    	$res[$i][] = $list[26];
+			    }
+			break;
+			case "Product Line Desc":
+			    if (ISSET($pf_map[$prodFamily][$prodLineDesc][0])){
+				$res[$i][] = $pf_map[$prodFamily][$prodLineDesc][0];
+			    } else {
+			    	$res[$i][] = $list[25];
+			    }
+			break;
+			case "Product Family":
+			    if ($list[29] == "PTX"){
+				$res[$i][] = "PTX Series";
+			    } else if (ISSET($pf_map[$prodFamily][$prodLineDesc][0])){
+				$res[$i][] = $pf_map[$prodFamily][$prodLineDesc][1];
+			    } else {
+			    	$res[$i][] = $list[29];
+			    }
+			break;
 			case "Category":
 			    if ($product == 1) {
 				$res[$i][] = "Product";
@@ -459,11 +520,11 @@ function merge_ssot($quarter="Q115", $files) {
 	    		    } else {
 				$peg[$i] = $PEUG_CAPS;
 			    }
-			    if (ISSET($glcode_map[$glcode][$prodLineDesc][0])){
-				if (ISSET($eu_peug[$glcode_map[$glcode][$prodLineDesc][0]]) || (ISSET($eu_peug[strtoupper($glcode_map[$glcode][$prodLineDesc][0])]))) {
-				    $peg[$i] = $eu_peug[strtoupper($glcode_map[$glcode][$prodLineDesc][0])];
+			    if (ISSET($glcode_map[$glcode][$glcode_segment][0])){
+				if (ISSET($eu_peug[$glcode_map[$glcode][$glcode_segment][0]]) || (ISSET($eu_peug[strtoupper($glcode_map[$glcode][$glcode_segment][0])]))) {
+				    $peg[$i] = $eu_peug[strtoupper($glcode_map[$glcode][$glcode_segment][0])];
 				} else {
-				    $peg[$i] = strtoupper($glcode_map[$glcode][$prodLineDesc][0]);
+				    $peg[$i] = strtoupper($glcode_map[$glcode][$glcode_segment][0]);
 				}
 			    } 
 			    if (empty($PEUG) && (strcasecmp($PEU, "unknown") == 0)) {
@@ -715,6 +776,7 @@ foreach ($argv as $entry) {
 #print_r($fileList);
 print "Genrating Mapings for Unknown Entries in SSOT ... \n";
 gl_code("GLCode.csv");
+pfgroup_map("ssot_all/PFGrouping.csv");
 print "Ingest the latest Parent Enguser Group Mappings ... \n";
 eu_peug("EU_PEUG.csv");
 print "Ingest the latest Parent Enguser Group to Vertical and Subvertical Mappings ... \n";
