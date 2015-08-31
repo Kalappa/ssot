@@ -75,7 +75,7 @@ function genMDF($quarter="Q115", $mdfFile = "MDF.csv", $outputFile = "final.csv"
 			    exit;
 			}
 			$str[14] = -1 * $partAdjust[$region." - ".$bu]*1000000;
-			print "PARTNER: ".$str[14]."\n";
+			//print "PARTNER: ".$str[14]."\n";
 		    } else { 
 			$str[14] = $value*1000000;
 		    }
@@ -155,7 +155,7 @@ function genMDFAggregate($quarter="Q115", $mdfFile = "MDF.csv", $outputFile = "f
 			    exit;
 			}
 			$str[$vertIndex] = -1 * $partAdjust[$region." - ".$bu]*1000000;
-			print "PARTNER: ".$str[$vertIndex]."\n";
+			//print "PARTNER: ".$str[$vertIndex]."\n";
 		    } else { 
 			$str[$vertIndex] = $value*1000000;
 		    }
