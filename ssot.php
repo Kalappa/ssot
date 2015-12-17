@@ -283,12 +283,17 @@ function verify_revenue_adjustment_new($res, $outputFile = "final.csv"){
 	$MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][1] += $Revrec_Cost;
 	$MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][2] += $adjRev;
 
+	$revrec_cost += $Revrec_Cost;
+
 	$MO_MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][$Product_Line_Desc][$Product_Line_Code][0] += $Revrec_Net;
 	$MO_MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][$Product_Line_Desc][$Product_Line_Code][1] += $Revrec_Cost;
 	$MO_MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][$Product_Line_Desc][$Product_Line_Code][2] += $adjRev;
 
 	fputcsv($handle,$list);
-	if ($list[3] == "North America" || $list[3] == "Latin America"){ 
+
+
+
+	if ($list[3] == "North America" || $list[3] == "Latin America" ||  $list[3] == "NORTH AMERICA" ||  $list[3] == "LATIN AMERICA" ){ 
 	    $Region = "AMER";
 	}else {
 	    $Region = $list[3];
@@ -304,6 +309,7 @@ function verify_revenue_adjustment_new($res, $outputFile = "final.csv"){
     fclose($handle);
     print "Old Revenue = ". round($OldRevenue,0)."\n";
     print "New Revenue = ". round($NewRevenue,0)."\n";
+    print "RevRec Cost Aggregate= ".$revrec_cost."\n";
     return ($OldRevenue == $NewRevenue);
 }
 
@@ -422,6 +428,7 @@ function merge_ssot($quarter="Q115", $files) {
 	    $product = 1;
 	    $i=0;
 	    $res[$i]=$header;
+	    print " Found product file \n";
 	}else {
 	    $product = 0;
 	}
@@ -450,6 +457,7 @@ function merge_ssot($quarter="Q115", $files) {
 	    $index["Product Family"] = -1;
 	    $index["Product Line Desc"] = -1;
 	    $index["Reportable Business"] = -1;
+	    $index["Revrec Cost\$"] = -1;
 	}
 	while (($buffer = fgets($handle, 4096)) !== false) {
 	    $i++;
@@ -520,7 +528,7 @@ function merge_ssot($quarter="Q115", $files) {
 	    		    } else {
 				$peg[$i] = $PEUG_CAPS;
 			    }
-			    if (ISSET($glcode_map[$glcode][$glcode_segment][0])){
+		            if (ISSET($glcode_map[$glcode][$glcode_segment][0])){
 				if (ISSET($eu_peug[$glcode_map[$glcode][$glcode_segment][0]]) || (ISSET($eu_peug[strtoupper($glcode_map[$glcode][$glcode_segment][0])]))) {
 				    $peg[$i] = $eu_peug[strtoupper($glcode_map[$glcode][$glcode_segment][0])];
 				} else {
@@ -551,7 +559,10 @@ function merge_ssot($quarter="Q115", $files) {
 			    # 	    print "Exception 4,".$buffer."\n";
 			    # 	}
 			    # }
-			    $res[$i][] = $peg[$i];
+#			if ((strcasecmp($peg[$i], "unknown") <> 0) && (strcasecmp($PEUG, "unknown") == 0)){
+#			   print "An UNKNOWN PEG was converted into an existing PEG usign the GLCode Mapping, New PEG: $peg[$i] \n";
+#			}
+			$res[$i][] = $peg[$i];
 			break;
 		        case "Vertical":
 			    if (ISSET($peug[$peg[$i]])) {
@@ -573,6 +584,9 @@ function merge_ssot($quarter="Q115", $files) {
 		        case "Revrec Type":
 			    $res[$i][] = $list[0];
 			break;
+		        case "Revrec Cost\$":
+			    $res[$i][] = floatval(str_replace(',', '', $list[22]));
+			break;
 		      	case "Pulse": {
 			    if (preg_match("/pulse/i", $buffer)){
 				$res[$i][] = "Y";
@@ -583,15 +597,16 @@ function merge_ssot($quarter="Q115", $files) {
 			break;
 		      	case "P4 Reporting Ship to Country": {
 			    $res[$i][] = $country;
-			    break;
 			}
+			break;
 		      	case "Theater": {
-			    if ($Geo == "North America" || $Geo == "Latin America"){
+			    if ($Geo == "North America" || $Geo == "Latin America" ||  $list[3] == "NORTH AMERICA" ||  $list[3] == "LATIN AMERICA" ){
 				$res[$i][] = "AMER";
 			    }else {
 				$res[$i][] = $Geo;
 			    }
 			}
+			break;
 		      default:
 			$res[$i][] = "To be filled";
 		    }
