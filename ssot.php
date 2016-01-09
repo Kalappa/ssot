@@ -274,9 +274,22 @@ function verify_revenue_adjustment_new($res, $outputFile = "final.csv"){
 	$Revrec_Cost = $list[13];
 	$OldRevenue += $Revrec_Net;
 	$adjRev =  adjustRevenue($Revrec_Net, $Category, $Revrec_Type, $SO_Channel_Code, $Product_Family, $Segment, $P4_Reporting_Ship_to_GEO);
+
 	$NewRevenue += $adjRev;
 	if ($i != 0 ){
 	    $list[14] = $adjRev;
+	}
+
+	if (ISSET($pf_map[$Product_Family][$Product_Line_Desc][0])){
+	    $Product_Line_Desc = $pf_map[$Product_Family][$Product_Line_Desc][0];
+	}
+
+	if (ISSET($pf_map[$Product_Family][$Product_Line_Desc][0])){
+	    $Product_Family = $pf_map[$Product_Family][$Product_Line_Desc][1];
+	}
+	    
+	if ($Product_Family == "PTX"){
+	    $Product_Family = "PTX Series";
 	}
 
 	$MOAT[$Parent_Enduser_Group][$Revrec_Qtr][$So_Channel_Code][$Theater][$Category][$Segment][$Vertical][$Sub_Vertical][$Reportable_Business][$Product_Family][0] += $Revrec_Net;
@@ -482,20 +495,20 @@ function merge_ssot($quarter="Q115", $files) {
 			    }
 			break;
 			case "Product Line Desc":
-			    if (ISSET($pf_map[$prodFamily][$prodLineDesc][0])){
+			    /* if (ISSET($pf_map[$prodFamily][$prodLineDesc][0])){
 				$res[$i][] = $pf_map[$prodFamily][$prodLineDesc][0];
-			    } else {
+			    } else { */
 			    	$res[$i][] = $list[25];
-			    }
+/*			    }*/
 			break;
 			case "Product Family":
-			    if ($list[29] == "PTX"){
+/*			    if ($list[29] == "PTX"){
 				$res[$i][] = "PTX Series";
 			    } else if (ISSET($pf_map[$prodFamily][$prodLineDesc][0])){
 				$res[$i][] = $pf_map[$prodFamily][$prodLineDesc][1];
-			    } else {
+			    } else { */
 			    	$res[$i][] = $list[29];
-			    }
+/*			    }*/
 			break;
 			case "Category":
 			    if ($product == 1) {
