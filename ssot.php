@@ -236,6 +236,8 @@ function verify_revenue_adjustment_new($res, $outputFile = "final.csv"){
     global $mdf;
     global $MOAT;
     global $MO_MOAT;
+    global $pf_map;
+    
 
     generate_money_pivot_new($res);
     
@@ -280,14 +282,28 @@ function verify_revenue_adjustment_new($res, $outputFile = "final.csv"){
 	    $list[14] = $adjRev;
 	}
 
+	# if ($Product_Family == "Mid-range SRX"){
+	#     print "found mid range";
+	#     print_r($list);
+	# }
+
 	if (ISSET($pf_map[$Product_Family][$Product_Line_Desc][0])){
+	    $New_Prod_Line_Desc = $pf_map[$Product_Family][$Product_Line_Desc][0];
+	    $Product_Family = $pf_map[$Product_Family][$Product_Line_Desc][1];
+	    $Product_Line_Desc = $New_Prod_Line_Desc;
+	}
+
+/*	    
+	if (ISSET($pf_map[$Product_Family][$Product_Line_Desc][0])){
+	    print "Changing $Product_Line_Desc to $pf_map[$Product_Family][$Product_Line_Desc][0]\n";
 	    $Product_Line_Desc = $pf_map[$Product_Family][$Product_Line_Desc][0];
 	}
 
 	if (ISSET($pf_map[$Product_Family][$Product_Line_Desc][0])){
+	    print "Changing $Product_Family to $pf_map[$Product_Family][$Product_Line_Desc][1]\n";
 	    $Product_Family = $pf_map[$Product_Family][$Product_Line_Desc][1];
 	}
-	    
+*/	    
 	if ($Product_Family == "PTX"){
 	    $Product_Family = "PTX Series";
 	}
@@ -346,7 +362,7 @@ function gl_code($filename = "GLCode.csv"){
 	    $glcode_map[$list[0]][$list[1]][0] = $list[3];
 	}
     }
-#    print_r($glcode_map);
+//   print_r($glcode_map);
 }
 
 function pfgroup_map($filename = "ssot_all/PFGrouping.csv"){
@@ -375,7 +391,7 @@ function pfgroup_map($filename = "ssot_all/PFGrouping.csv"){
 	# Index 1 is the new product family
 	$bu_map[$oldProdFamily]=$newBu;
     }
-#    print_r($pf_map);
+//    print_r($pf_map);
 }
 
 function eu_peug($filename = "EU_PEUG.csv"){
