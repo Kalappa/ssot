@@ -11,9 +11,13 @@ foreach ($matches as $line) {
 $handle = @fopen("detail.csv", "r");
 $output = @fopen("result.csv", "w");
 if ($handle) {
+
+    if (($buffer = fgets($handle, 4096)) !== false) {
+	fputs($output, $buffer);
+    }
     while (($buffer = fgets($handle, 4096)) !== false) {
 	$line = str_getcsv($buffer);
-	fputs($output, $buffer);
+#	fputs($output, $buffer);
 	if (array_key_exists($line[10], $res)){
 	    $line[10] = $res[$line[10]];
 	    $line[12] = "CC";
