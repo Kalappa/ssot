@@ -8,12 +8,16 @@ foreach ($matches as $line) {
     $res[$full[2]]=$full[3];
 }
 
-$handle = @fopen("detail.csv", "r");
+$handle = @fopen($argv[1], "r");
+print "Processing Input file: $argv[1]..\n";
 $output = @fopen("result.csv", "w");
 if ($handle) {
 
     if (($buffer = fgets($handle, 4096)) !== false) {
-	fputs($output, $buffer);
+	$line = str_getcsv($buffer);
+	$line[70] = "Contract Start Date";
+	$line[71] = "Contract End Date";
+	fputcsv($output, $line, ",");
     }
     while (($buffer = fgets($handle, 4096)) !== false) {
 	$line = str_getcsv($buffer);
@@ -22,9 +26,11 @@ if ($handle) {
 	    $line[10] = $res[$line[10]];
 	    $line[12] = "CC";
 	    $line[28] = "SVC";
-	    # billing date : 47
-	    $line[42] = $line[47];
-	    $line[43] = date('m/d/Y', strtotime("+60 months", strtotime($line[47])));
+	    # billing date : 51
+	    $billingDate = 51;
+	    $line[70] = $line[$billingDate];
+	    $line[71] = date('m/d/Y', strtotime("+60 months", strtotime($line[$billingDate])));
+#	    print "$line[70], $line[71]\n";
 #	    $res_line = str_replace($line[10], $res[$line[10]], $buffer, $count);
 #	    print ("Adding line : ".implode(', ',$line)."\n");
 #	    fputs($output, implode(',',$line)."\n");	    
